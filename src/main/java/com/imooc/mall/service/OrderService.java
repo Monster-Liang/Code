@@ -1,32 +1,22 @@
 package com.imooc.mall.service;
 
-import com.github.pagehelper.PageInfo;
-import com.imooc.mall.model.request.CreateOrderReq;
-import com.imooc.mall.model.vo.CartVO;
-import com.imooc.mall.model.vo.OrderVO;
-import java.util.List;
 
-/**
- * 描述：     订单Service
- */
+
+import com.imooc.mall.pojo.dto.CartDTO;
+import com.imooc.mall.pojo.po.OrderPO;
+
+import java.util.Map;
+
 public interface OrderService {
 
+    Map<String, Object> addCart(CartDTO cartDTO);
 
-    String create(CreateOrderReq createOrderReq);
 
-    OrderVO detail(String orderNo);
+    boolean addOrder(Map<String, Object> cartMap);
 
-    PageInfo listForCustomer(Integer pageNum, Integer pageSize);
 
-    void cancel(String orderNo);
-
-    String qrcode(String orderNo);
-
-    void pay(String orderNo);
-
-    PageInfo listForAdmin(Integer pageNum, Integer pageSize);
-
-    void deliver(String orderNo);
-
-    void finish(String orderNo);
+    OrderDTO getOrderInfo(Long orderNo);
 }
+
+
+

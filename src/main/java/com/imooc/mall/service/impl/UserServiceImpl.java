@@ -1,79 +1,92 @@
 package com.imooc.mall.service.impl;
 
-import com.imooc.anti.MD5Utils;
-import com.imooc.mall.common.Constant;
-import com.imooc.mall.exception.ImoocMallException;
-import com.imooc.mall.exception.ImoocMallExceptionEnum;
-import com.imooc.mall.model.dao.UserMapper;
-import com.imooc.mall.model.pojo.User;
+package com.boss.ljt.listmode.service.impl;/**
+ * @author ljt
+ * @create 2021-06-04 19:00
+ */
+
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.imooc.mall.exception.OrderException;
+import com.imooc.mall.exception.OrderExceptionType;
+import com.imooc.mall.mapper.UserMapper;
+import com.imooc.mall.pojo.dto.UserDTO;
+import com.imooc.mall.pojo.po.UserPO;
 import com.imooc.mall.service.UserService;
-import java.security.NoSuchAlgorithmException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.DigestUtils;
+
+import javax.annotation.Resource;
 
 /**
- * 描述：     UserService实现类
+ * @Description 用户业务逻辑实现类
  */
 @Service
 public class UserServiceImpl implements UserService {
-
-    @Autowired
-    UserMapper userMapper;
-
-    @Override
-    public User getUser() {
-        return userMapper.selectByPrimaryKey(1);
-    }
+    @Resource
+    private UserMapper userMapper;
 
     @Override
-    public void register(String userName, String password) throws ImoocMallException {
-        //查询用户名是否存在，不允许重名
-        User result = userMapper.selectByName(userName);
-        if (result != null) {
-            throw new ImoocMallException(ImoocMallExceptionEnum.NAME_EXISTED);
-        }
-
-        //写到数据库
-        User user = new User();
-        user.setUsername(userName);
+    public UserDTO authenticateUser(String name, String password) {
         try {
-            user.setPassword(MD5Utils.getMD5Str(password, Constant.ICODE));
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
+            //创建queryWrapper进行条件查询
+            QueryWrapper<UserPO> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("f_user_name", name);
+            queryWrapper.eq("f_user_password", DigestUtils.md5DigestAsHex(password.getBytes()));
+            //根据queryWrapper查询对应的用户信息
+            UserPO userPO = userMapper.selectOne(queryWrapper);
+            return getUserDTO(userPO);
+        } catch (Exception e){
+            throw new OrderException(OrderExceptionType.SYSTEM_ERROR, "用户查询出现异常!");
         }
-        int count = userMapper.insertSelective(user);
-        if (count == 0) {
-            throw new ImoocMallException(ImoocMallExceptionEnum.INSERT_FAILED);
+
+    }
+
+    /**
+     * 将userPO转化为UserDTO
+     * @param userPO 需要转换的userPO
+     * @return 根据userPO封装好的userDTO
+     */
+    private UserDTO getUserDTO(UserPO userPO) {
+        if (userPO != null){
+            UserDTO userDTO = new UserDTO();
+            userDTO.setId(userPO.getId());
+            userDTO.setPassword(userPO.getPassword());
+            userDTO.setUserName(userPO.getName());
+            return userDTO;
         }
+        return null;
     }
 
     @Override
-    public User login(String userName, String password) throws ImoocMallException {
-        String md5Password = null;
+    public boolean saveUser(UserDTO userDTO) {
         try {
-            md5Password = MD5Utils.getMD5Str(password, Constant.ICODE);
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
+            //验证是否已经存在相同的用户
+            UserDTO authenticateUser = authenticateUser(userDTO.getUserName(), userDTO.getPassword());
+            if (authenticateUser != null){
+                return false;
+            }
+            UserPO userPO = new UserPO();
+            userPO.setName(userDTO.getUserName());
+            userPO.setPassword(DigestUtils.md5DigestAsHex(userDTO.getPassword().getBytes()));
+            int insert = userMapper.insert(userPO);
+            if (insert > 0){
+                return true;
+            } else {
+                return false;
+            }
+        } catch (Exception e){
+            throw new OrderException(OrderExceptionType.SYSTEM_ERROR, "用户添加出现异常!");
         }
-        User user = userMapper.selectLogin(userName, md5Password);
-        if (user == null) {
-            throw new ImoocMallException(ImoocMallExceptionEnum.WRONG_PASSWORD);
-        }
-        return user;
+
     }
 
     @Override
-    public void updateInformation(User user) throws ImoocMallException {
-        //更新个性签名
-        int updateCount = userMapper.updateByPrimaryKeySelective(user);
-        if (updateCount > 1) {
-            throw new ImoocMallException(ImoocMallExceptionEnum.UPDATE_FAILED);
+    public UserDTO getUserById(Long id) {
+        if (id != null && id > 0){
+            UserPO userPO = userMapper.selectById(id);
+            return getUserDTO(userPO);
         }
-    }
-
-    @Override
-    public boolean checkAdminRole(User user) {
-        //1是普通用户，2是管理员
-        return user.getRole().equals(2);
+        return null;
     }
 }
+

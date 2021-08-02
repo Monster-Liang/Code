@@ -1,76 +1,109 @@
 package com.imooc.mall.controller;
 
-import com.imooc.mall.common.ApiRestResponse;
-import com.imooc.mall.filter.UserFilter;
-import com.imooc.mall.model.vo.CartVO;
-import com.imooc.mall.service.CartService;
-import io.swagger.annotations.ApiOperation;
-import java.util.List;
-import javax.servlet.http.HttpSession;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+
+import com.imooc.mall.pojo.vo.CartVO;
+import com.imooc.mall.pojo.dto.CartDTO;
+import com.imooc.mall.common.CommonResponse;
+import com.imooc.mall.service.ProductService;
+import com.imooc.mall.exception.derExceptionType;
+import com.imooc.mall.exception.OrderException;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+
+import javax.annotation.Resource;
+import javax.validation.Valid;
 
 /**
- * 描述：     购物车Controller
+ * @Description 商品操作对应接口
  */
+@Slf4j
 @RestController
-@RequestMapping("/cart")
+@RequestMapping("/mall/good")
+@CrossOrigin
 public class CartController {
+    @Resource
+    private GoodService goodService;
 
-    @Autowired
-    CartService cartService;
-
-    @GetMapping("/list")
-    @ApiOperation("购物车列表")
-    public ApiRestResponse list() {
-        //内部获取用户ID，防止横向越权
-        List<CartVO> cartList = cartService.list(UserFilter.currentUser.getId());
-        return ApiRestResponse.success(cartList);
+    /**
+     * 商品的添加
+     */
+    @PostMapping
+    public CommonResponse saveGood(@RequestBody @Valid CartVO cartVO, BindingResult bindingResult){
+        if (cartVO != null){
+            if (bindingResult.hasErrors()){
+                return CommonResponse.error(new OrderException(OrderExceptionType.USER_INPUT_ERROR)).messages("传入的数据格式存在错误!");
+            }
+            CartDTO goodDTO = new cartDTO();
+            BeanUtils.copyProperties(cartVO, cartDTO);
+            Boolean addFlag = goodService.add(cartDTO);
+            if (addFlag) {
+                return CommonResponse.success().messages("商品添加成功!");
+            } else {
+                return CommonResponse.error(new OrderException(OrderExceptionType.USER_INPUT_ERROR)).messages("未能成功进行添加!");
+            }
+        } else {
+            throw new OrderException(OrderExceptionType.USER_INPUT_ERROR);
+        }
     }
 
-    @PostMapping("/add")
-    @ApiOperation("添加商品到购物车")
-    public ApiRestResponse add(@RequestParam Integer productId, @RequestParam Integer count) {
-        List<CartVO> cartVOList = cartService.add(UserFilter.currentUser.getId(), productId, count);
-        return ApiRestResponse.success(cartVOList);
+    /**
+     * 商品信息的修改
+     */
+    @PutMapping
+    public CommonResponse updateGood(@RequestBody @Valid CartVO cartVO, BindingResult bindingResult){
+        if (cartVO != null){
+            if (bindingResult.hasErrors()){
+                return CommonResponse.error(new OrderException(OrderExceptionType.USER_INPUT_ERROR)).messages("传入的数据格式存在错误!");
+            }
+            CartDTO goodDTO = new CartDTO();
+            BeanUtils.copyProperties(cartVO, cartDTO);
+            Boolean updateFlag = goodService.update(cartDTO);
+            if (updateFlag) {
+                return CommonResponse.success().messages("商品修改成功!");
+            } else {
+                return CommonResponse.error(new OrderException(OrderExceptionType.USER_INPUT_ERROR)).messages("未能成功进行修改!");
+            }
+        } else {
+            throw new OrderException(OrderExceptionType.USER_INPUT_ERROR);
+        }
     }
 
-    @PostMapping("/update")
-    @ApiOperation("更新购物车")
-    public ApiRestResponse update(@RequestParam Integer productId, @RequestParam Integer count) {
-        List<CartVO> cartVOList = cartService
-                .update(UserFilter.currentUser.getId(), productId, count);
-        return ApiRestResponse.success(cartVOList);
+    /**
+     * 商品的删除
+     */
+    @DeleteMapping("/{id}")
+    public CommonResponse deleteGood(@PathVariable("id") Long id){
+        if (id != null){
+            Boolean removeFlag = goodService.remove(id);
+            if (removeFlag){
+                return CommonResponse.success().messages("商品删除成功!");
+            } else {
+                return CommonResponse.error(new OrderException(OrderExceptionType.USER_INPUT_ERROR)).messages("商品删除失败!");
+            }
+        } else {
+            throw new OrderException(OrderExceptionType.USER_INPUT_ERROR);
+        }
     }
 
-    @PostMapping("/delete")
-    @ApiOperation("删除购物车")
-    public ApiRestResponse delete(@RequestParam Integer productId) {
-        //不能传入userID，cartID，否则可以删除别人的购物车
-        List<CartVO> cartVOList = cartService.delete(UserFilter.currentUser.getId(), productId);
-        return ApiRestResponse.success(cartVOList);
-    }
-
-    @PostMapping("/select")
-    @ApiOperation("选择/不选择购物车的某商品")
-    public ApiRestResponse select(@RequestParam Integer productId, @RequestParam Integer selected) {
-        //不能传入userID，cartID，否则可以删除别人的购物车
-        List<CartVO> cartVOList = cartService
-                .selectOrNot(UserFilter.currentUser.getId(), productId, selected);
-        return ApiRestResponse.success(cartVOList);
-    }
-
-    @PostMapping("/selectAll")
-    @ApiOperation("全选择/全不选择购物车的某商品")
-    public ApiRestResponse selectAll(@RequestParam Integer selected) {
-        //不能传入userID，cartID，否则可以删除别人的购物车
-        List<CartVO> cartVOList = cartService
-                .selectAllOrNot(UserFilter.currentUser.getId(), selected);
-        return ApiRestResponse.success(cartVOList);
+    /**
+     * 商品信息的查询
+     */
+    @GetMapping("/{id}")
+    public CommonResponse getGoodById(@PathVariable("id") Long id){
+        if (id != null) {
+            CartDTO cartDTO = ProductService.Service.queryById(id);
+            if (cartDTO != null){
+                CartVO cartVO = new CartVO();
+                BeanUtils.copyProperties(cartDTO, cartVO);
+                return CommonResponse.success().messages("商品信息查询成功!").data(cartVO);
+            } else {
+                return CommonResponse.error(new OrderException(OrderExceptionType.USER_INPUT_ERROR)).messages("商品信息查询失败!");
+            }
+        } else {
+            throw new OrderException(OrderExceptionType.USER_INPUT_ERROR);
+        }
     }
 }
+

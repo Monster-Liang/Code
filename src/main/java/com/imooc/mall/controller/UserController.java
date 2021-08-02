@@ -1,129 +1,83 @@
 package com.imooc.mall.controller;
 
-import com.imooc.mall.common.ApiRestResponse;
-import com.imooc.mall.common.Constant;
-import com.imooc.mall.exception.ImoocMallException;
-import com.imooc.mall.exception.ImoocMallExceptionEnum;
-import com.imooc.mall.model.pojo.User;
+
+
+
+
+import com.imooc.mall.common.CommonResponse;
+import com.imooc.mall.common.TokenUtil;
+import com.imooc.mall.exception.OrderException;
+import com.imooc.mall.exception.OrderExceptionType;
+import com.imooc.mall.pojo.dto.UserDTO;
+import com.imooc.mall.pojo.vo.UserVO;
 import com.imooc.mall.service.UserService;
-import javax.servlet.http.HttpSession;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Controller;
-import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
+import io.swagger.annotations.ApiOperation;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+
+import javax.annotation.Resource;
+import javax.validation.Valid;
 
 /**
- * 描述：     用户控制器
+ * @Description 用户操作对应接口
  */
-@Controller
+@Slf4j
+@RestController
+@RequestMapping("/listmode/user")
+@CrossOrigin
 public class UserController {
-
-    @Autowired
-    UserService userService;
-
-    @GetMapping("/test")
-    @ResponseBody
-    public User personalPage() {
-        return userService.getUser();
-    }
+    @Resource
+    private UserService userService;
 
     /**
-     * 注册
+     * 用户的登录
+     * @param name 用户名
+     * @param password 密码
+     * @return 返回CommonResponse得到的结果
      */
-    @PostMapping("/register")
-    @ResponseBody
-    public ApiRestResponse register(@RequestParam("userName") String userName,
-            @RequestParam("password") String password) throws ImoocMallException {
-        if (StringUtils.isEmpty(userName)) {
-            return ApiRestResponse.error(ImoocMallExceptionEnum.NEED_USER_NAME);
-        }
-        if (StringUtils.isEmpty(password)) {
-            return ApiRestResponse.error(ImoocMallExceptionEnum.NEED_PASSWORD);
-        }
-        //密码长度不能少于8位
-        if (password.length() < 8) {
-            return ApiRestResponse.error(ImoocMallExceptionEnum.PASSWORD_TOO_SHORT);
-        }
-        userService.register(userName, password);
-        return ApiRestResponse.success();
-    }
-
-    /**
-     * 登录
-     */
-    @PostMapping("/login")
-    @ResponseBody
-    public ApiRestResponse login(@RequestParam("userName") String userName,
-            @RequestParam("password") String password, HttpSession session)
-            throws ImoocMallException {
-        if (StringUtils.isEmpty(userName)) {
-            return ApiRestResponse.error(ImoocMallExceptionEnum.NEED_USER_NAME);
-        }
-        if (StringUtils.isEmpty(password)) {
-            return ApiRestResponse.error(ImoocMallExceptionEnum.NEED_PASSWORD);
-        }
-        User user = userService.login(userName, password);
-        //保存用户信息时，不保存密码
-        user.setPassword(null);
-        session.setAttribute(Constant.IMOOC_MALL_USER, user);
-        return ApiRestResponse.success(user);
-    }
-
-    /**
-     * 更新个性签名
-     */
-    @PostMapping("/user/update")
-    @ResponseBody
-    public ApiRestResponse updateUserInfo(HttpSession session, @RequestParam String signature)
-            throws ImoocMallException {
-        User currentUser = (User) session.getAttribute(Constant.IMOOC_MALL_USER);
-        if (currentUser == null) {
-            return ApiRestResponse.error(ImoocMallExceptionEnum.NEED_LOGIN);
-        }
-        User user = new User();
-        user.setId(currentUser.getId());
-        user.setPersonalizedSignature(signature);
-        userService.updateInformation(user);
-        return ApiRestResponse.success();
-    }
-
-    /**
-     * 登出，清除session
-     */
-    @PostMapping("/user/logout")
-    @ResponseBody
-    public ApiRestResponse logout(HttpSession session) {
-        session.removeAttribute(Constant.IMOOC_MALL_USER);
-        return ApiRestResponse.success();
-    }
-
-    /**
-     * 管理员登录接口
-     */
-    @PostMapping("/adminLogin")
-    @ResponseBody
-    public ApiRestResponse adminLogin(@RequestParam("userName") String userName,
-            @RequestParam("password") String password, HttpSession session)
-            throws ImoocMallException {
-        if (StringUtils.isEmpty(userName)) {
-            return ApiRestResponse.error(ImoocMallExceptionEnum.NEED_USER_NAME);
-        }
-        if (StringUtils.isEmpty(password)) {
-            return ApiRestResponse.error(ImoocMallExceptionEnum.NEED_PASSWORD);
-        }
-        User user = userService.login(userName, password);
-        //校验是否是管理员
-        if (userService.checkAdminRole(user)) {
-            //是管理员，执行操作
-            //保存用户信息时，不保存密码
-            user.setPassword(null);
-            session.setAttribute(Constant.IMOOC_MALL_USER, user);
-            return ApiRestResponse.success(user);
+    @GetMapping("/login")
+    @ApiOperation(value = "login",notes = "用户登录",tags = "UserLogin",httpMethod = "GET")
+    public CommonResponse Login(@RequestParam("userName") String name,@RequestParam("password") String password){
+        if (name != null && password != null){
+            UserDTO userDTO = userService.authenticateUser(name,password);
+            if (userDTO != null){
+                UserVO userVO = new UserVO();
+                BeanUtils.copyProperties(userDTO, userVO);
+                String userToken = TokenUtil.sign(userVO);
+                return CommonResponse.success().messages("登录成功!").data(userToken);
+            } else {
+                return CommonResponse.error(new OrderException(OrderExceptionType.USER_INPUT_ERROR)).messages("未能找到对应用户！");
+            }
         } else {
-            return ApiRestResponse.error(ImoocMallExceptionEnum.NEED_ADMIN);
+            throw new OrderException(OrderExceptionType.USER_INPUT_ERROR);
         }
     }
+
+    /**
+     * 用户注册
+     * @param userVO 前端传入的用户注册信息
+     * @return 返回CommonResponse得到的结果
+     */
+    @ApiOperation(value = "register",notes = "用户注册",tags = "UserRegister",httpMethod = "POST")
+    @PostMapping("/register")
+    public CommonResponse Register(@RequestBody @Valid UserVO userVO, BindingResult bindingResult){
+        if (userVO != null){
+            if (bindingResult.hasErrors()){
+                return CommonResponse.error(new OrderException(OrderExceptionType.USER_INPUT_ERROR)).messages("您的用户名或密码格式不正确!");
+            }
+            UserDTO userDTO = new UserDTO();
+            BeanUtils.copyProperties(userVO,userDTO);
+            boolean saveFlag = userService.saveUser(userDTO);
+            if (saveFlag){
+                return CommonResponse.success().messages("注册成功!");
+            } else {
+                return CommonResponse.error(new OrderException(OrderExceptionType.USER_INPUT_ERROR)).messages("输入信息存在错误!未能注册成功!");
+            }
+        } else {
+            throw new OrderException(OrderExceptionType.USER_INPUT_ERROR);
+        }
+    }
+
 }
