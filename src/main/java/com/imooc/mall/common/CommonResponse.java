@@ -5,11 +5,7 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 /**
- * @ClassName CommonResponse
- * @author admin
- * @version 1.0.0
  * @Description 统一的接口响应的数据格式
- * @createTime 2021年06月04日 16:43:00
  */
 @Data
 public class CommonResponse {
